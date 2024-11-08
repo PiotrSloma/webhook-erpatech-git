@@ -18,7 +18,9 @@ app.post("/webhook", (req, res) => {
   console.log("Otrzymano webhook: ", JSON.stringify(req.body, null, 2));
   const projectName = req.body.repository.name;
   const projectPath = path.join(__dirname, projectName);
-  exec("git pull origin main", { cwd: projectPath }, (error, stdout, stderr) => {
+  exec("git pull origin main && npm run build && pm2 restart all", {
+    cwd: projectPath,
+  }, (error, stdout, stderr) => {
     if (error) {
       console.error(`Błąd podczas wywołania git pull: ${error}`);
       res.status(500).send(`Błąd podczas wywołania git pull: ${error}`);
