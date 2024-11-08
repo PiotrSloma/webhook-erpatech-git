@@ -20,40 +20,25 @@ app.get("/", (req, res) => {
 
 app.post("/webhook", async (req, res) => {
   console.log("POST /webhook - Otrzymano webhook");
-  console.log("Headers:", JSON.stringify(req.headers, null, 2));
-  console.log("Body:", JSON.stringify(req.body, null, 2));
 
   // Sprawdzanie podpisu
   const signature = req.headers["x-hub-signature-256"];
-  console.log("Otrzymany podpis:", signature);
-
   const hmac = crypto.createHmac("sha256", process.env.GIT_WEBHOOK_SECRET as string);
-  console.log("Secret użyty do HMAC:", process.env.GIT_WEBHOOK_SECRET);
-
   const digest = "sha256=" + hmac.update(JSON.stringify(req.body)).digest("hex");
-  console.log("Wyliczony digest:", digest);
 
   if (!signature || signature !== digest) {
-    console.error("Błąd weryfikacji podpisu");
-    console.log("Oczekiwany:", digest);
-    console.log("Otrzymany:", signature);
     res.status(401).json({ error: "Nieprawidłowy podpis" });
     return;
   }
-
   console.log("Podpis zweryfikowany pomyślnie");
 
   const projectName = req.body.repository.name;
   const projectPath = path.join(__dirname, "..", projectName);
 
-  console.log("Nazwa projektu:", projectName);
-  console.log("Ścieżka projektu:", projectPath);
-
   try {
     console.log("Wykonywanie komend git...");
 
     // Reset
-    console.log("Wykonywanie komendy git reset...");
     const reset = Bun.spawn(["git", "reset", "--hard"], {
       cwd: projectPath,
       stderr: "pipe",
@@ -62,7 +47,6 @@ app.post("/webhook", async (req, res) => {
     await reset.exited;
 
     // Pull
-    console.log("Wykonywanie komendy git pull...");
     const pull = Bun.spawn(["git", "pull", "origin", "main"], {
       cwd: projectPath,
       stderr: "pipe",
@@ -70,33 +54,29 @@ app.post("/webhook", async (req, res) => {
     });
     await pull.exited;
 
-    // Build
-    console.log("Wykonywanie komendy npm run build...");
-    const build = Bun.spawn(["npm", "run", "build"], {
-      cwd: projectPath,
-      stderr: "pipe",
-      stdout: "pipe",
-    });
-    await build.exited;
-
-    // Restart PM2
-    console.log("Wykonywanie komendy pm2 restart ", projectName);
-    const restart = Bun.spawn(["pm2", "restart", projectName], {
+    // Delete PM2
+    console.log("Wykonywanie komendy pm2 delete ", projectName);
+    const restart = Bun.spawn(["pm2", "delete", projectName], {
       stderr: "pipe",
       stdout: "pipe",
     });
     await restart.exited;
 
-    const output = await new Response(restart.stdout).text();
-    const errors = await new Response(restart.stderr).text();
+    // Command
+    const command = req.body.head_commit.message;
+    const commandRun = Bun.spawn(["pm2", "start", "--interpreter", `bun ${command}`, "--name", projectName], {
+      cwd: projectPath,
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    await commandRun.exited;
 
+    const output = await new Response(commandRun.stdout).text();
+    const errors = await new Response(commandRun.stderr).text();
     if (errors) {
       console.log("Wynik błędów (stderr):");
       console.log(errors);
     }
-
-    console.log("Wynik standardowego wyjścia:");
-    console.log(output);
 
     console.log("Operacja zakończona sukcesem");
     res.status(200).json({ message: output });
