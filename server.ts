@@ -25,7 +25,7 @@ app.post("/webhook", (req, res) => {
   const hmac = crypto.createHmac("sha256", process.env.GIT_WEBHOOK_SECRET as string);
   const digest = "sha256=" + hmac.update(JSON.stringify(req.body)).digest("hex");
   if (!signature || signature !== digest) {
-    res.status(401).send("Nieprawidłowy podpis");
+    res.status(401).json({ error: "Nieprawidłowy podpis" });
     return;
   }
 
