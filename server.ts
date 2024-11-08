@@ -30,7 +30,7 @@ app.post("/webhook", (req, res) => {
   }
 
   const projectName = req.body.repository.name;
-  const projectPath = path.join(__dirname, projectName);
+  const projectPath = path.join(__dirname, "..", projectName);
   exec(
     "git pull origin main && npm run build && pm2 restart all",
     {
@@ -39,16 +39,17 @@ app.post("/webhook", (req, res) => {
     (error, stdout, stderr) => {
       if (error) {
         console.error(`Błąd podczas wywołania git pull: ${error}`);
-        res.status(500).send(`Błąd podczas wywołania git pull: ${error}`);
+        res.status(500).json({ error: `Błąd podczas wywołania git pull: ${error}` });
       }
 
       console.log(`Wynik git pull: ${stdout}`);
       if (stderr) console.error(`Błąd podczas wywołania git pull: ${stderr}`);
-      res.status(200).send(stdout);
+      res.status(200).json({ message: stdout });
     }
   );
 });
 
-app.listen(443, () => {
-  console.log("Server is running on port 443");
+app.listen(3100, "0.0.0.0", () => {
+  console.log("Server is running on port 3100");
 });
+("");
