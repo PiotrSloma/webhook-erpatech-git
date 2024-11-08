@@ -54,6 +54,14 @@ app.post("/webhook", async (req, res) => {
     });
     await pull.exited;
 
+    // Delete ngrok
+    console.log("Wykonywanie komendy ngrok delete ", projectName);
+    const ngrokDelete = Bun.spawn(["kill", "$(pgrep ngrok)"], {
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    await ngrokDelete.exited;
+
     // Delete PM2
     console.log("Wykonywanie komendy pm2 delete ", projectName);
     const restart = Bun.spawn(["pm2", "delete", projectName], {
@@ -70,6 +78,14 @@ app.post("/webhook", async (req, res) => {
       stdout: "pipe",
     });
     await commandRun.exited;
+
+    // Ngrok
+    console.log("Wykonywanie komendy ngrok start ", projectName);
+    const ngrokStart = Bun.spawn(["ngrok", "start", "--all"], {
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    await ngrokStart.exited;
 
     const output = await new Response(commandRun.stdout).text();
     const errors = await new Response(commandRun.stderr).text();
