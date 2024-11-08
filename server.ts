@@ -49,11 +49,11 @@ app.post("/webhook", async (req, res) => {
   console.log("Nazwa projektu:", projectName);
   console.log("Ścieżka projektu:", projectPath);
 
-  console.log("Wykonywanie komendy git...");
   try {
     console.log("Wykonywanie komend git...");
 
     // Reset
+    console.log("Wykonywanie komendy git reset...");
     const reset = Bun.spawn(["git", "reset", "--hard"], {
       cwd: projectPath,
       stderr: "pipe",
@@ -62,6 +62,7 @@ app.post("/webhook", async (req, res) => {
     await reset.exited;
 
     // Pull
+    console.log("Wykonywanie komendy git pull...");
     const pull = Bun.spawn(["git", "pull", "origin", "main"], {
       cwd: projectPath,
       stderr: "pipe",
@@ -70,6 +71,7 @@ app.post("/webhook", async (req, res) => {
     await pull.exited;
 
     // Build
+    console.log("Wykonywanie komendy npm run build...");
     const build = Bun.spawn(["npm", "run", "build"], {
       cwd: projectPath,
       stderr: "pipe",
@@ -78,6 +80,7 @@ app.post("/webhook", async (req, res) => {
     await build.exited;
 
     // Restart PM2
+    console.log("Wykonywanie komendy pm2 restart all...");
     const restart = Bun.spawn(["pm2", "restart", "all"], {
       stderr: "pipe",
       stdout: "pipe",
