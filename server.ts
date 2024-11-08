@@ -80,14 +80,13 @@ app.post("/webhook", async (req, res) => {
     await build.exited;
 
     // Restart PM2
-    console.log("Wykonywanie komendy pm2 restart all...");
+    console.log("Wykonywanie komendy pm2 restart ", projectName);
     const restart = Bun.spawn(["pm2", "restart", projectName], {
       stderr: "pipe",
       stdout: "pipe",
     });
     await restart.exited;
 
-    // Zbierz output ze wszystkich komend
     const output = await new Response(restart.stdout).text();
     const errors = await new Response(restart.stderr).text();
 
