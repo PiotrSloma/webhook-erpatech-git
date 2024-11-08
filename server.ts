@@ -32,7 +32,8 @@ app.post("/webhook", (req, res) => {
   const projectName = req.body.repository.name;
   const projectPath = path.join(__dirname, "..", projectName);
   exec(
-    "git pull origin main && npm run build && pm2 restart all",
+    "git reset --hard && git pull origin main && npm run build && pm2 restart all",
+
     {
       cwd: projectPath,
     },
