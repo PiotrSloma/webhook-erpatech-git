@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import { exec } from "child_process";
 import path from "path";
 import dotenv from "dotenv";
 import crypto from "crypto";
@@ -19,7 +18,7 @@ app.get("/", (req, res) => {
   res.send("This is a webhook for git.erpatech");
 });
 
-app.post("/webhook", (req, res) => {
+app.post("/webhook", async (req, res) => {
   console.log("POST /webhook - Otrzymano webhook");
   console.log("Headers:", JSON.stringify(req.headers, null, 2));
   console.log("Body:", JSON.stringify(req.body, null, 2));
@@ -46,38 +45,64 @@ app.post("/webhook", (req, res) => {
 
   const projectName = req.body.repository.name;
   const projectPath = path.join(__dirname, "..", projectName);
-  
+
   console.log("Nazwa projektu:", projectName);
   console.log("Ścieżka projektu:", projectPath);
 
   console.log("Wykonywanie komendy git...");
-  exec(
-    "git reset --hard && git pull origin main && npm run build && pm2 restart all",
-    {
+  try {
+    console.log("Wykonywanie komend git...");
+
+    // Reset
+    const reset = Bun.spawn(["git", "reset", "--hard"], {
       cwd: projectPath,
-    },
-    (error, stdout, stderr) => {
-      if (error) {
-        console.error("Błąd wykonania komendy:");
-        console.error("Kod błędu:", error.code);
-        console.error("Sygnał:", error.signal);
-        console.error("Szczegóły:", error.message);
-        res.status(500).json({ error: `Błąd podczas wywołania git pull: ${error}` });
-        return;
-      }
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    await reset.exited;
 
-      console.log("Wynik standardowego wyjścia:");
-      console.log(stdout);
+    // Pull
+    const pull = Bun.spawn(["git", "pull", "origin", "main"], {
+      cwd: projectPath,
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    await pull.exited;
 
-      if (stderr) {
-        console.log("Wynik błędów (stderr):");
-        console.log(stderr);
-      }
+    // Build
+    const build = Bun.spawn(["npm", "run", "build"], {
+      cwd: projectPath,
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    await build.exited;
 
-      console.log("Operacja zakończona sukcesem");
-      res.status(200).json({ message: stdout });
+    // Restart PM2
+    const restart = Bun.spawn(["pm2", "restart", "all"], {
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    await restart.exited;
+
+    // Zbierz output ze wszystkich komend
+    const output = await new Response(restart.stdout).text();
+    const errors = await new Response(restart.stderr).text();
+
+    if (errors) {
+      console.log("Wynik błędów (stderr):");
+      console.log(errors);
     }
-  );
+
+    console.log("Wynik standardowego wyjścia:");
+    console.log(output);
+
+    console.log("Operacja zakończona sukcesem");
+    res.status(200).json({ message: output });
+  } catch (error) {
+    console.error("Błąd wykonania komendy:");
+    console.error("Szczegóły:", error);
+    res.status(500).json({ error: `Błąd podczas wykonywania komend: ${error}` });
+  }
 });
 
 app.listen(3100, "0.0.0.0", () => {
