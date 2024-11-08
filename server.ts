@@ -2,7 +2,11 @@ import express from "express";
 import cors from "cors";
 import { exec } from "child_process";
 import path from "path";
-import { stderr, stdout } from "bun";
+import dotenv from "dotenv";
+import crypto from "crypto";
+
+dotenv.config({ path: path.join(__dirname, ".env") });
+// import { stderr, stdout } from "bun";
 
 const app = express();
 
@@ -16,20 +20,33 @@ app.get("/", (req, res) => {
 
 app.post("/webhook", (req, res) => {
   console.log("Otrzymano webhook: ", JSON.stringify(req.body, null, 2));
+
+  const signature = req.headers["x-hub-signature-256"];
+  const hmac = crypto.createHmac("sha256", process.env.GIT_WEBHOOK_SECRET as string);
+  const digest = "sha256=" + hmac.update(JSON.stringify(req.body)).digest("hex");
+  if (!signature || signature !== digest) {
+    res.status(401).send("Nieprawidłowy podpis");
+    return;
+  }
+
   const projectName = req.body.repository.name;
   const projectPath = path.join(__dirname, projectName);
-  exec("git pull origin main && npm run build && pm2 restart all", {
-    cwd: projectPath,
-  }, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Błąd podczas wywołania git pull: ${error}`);
-      res.status(500).send(`Błąd podczas wywołania git pull: ${error}`);
-    }
+  exec(
+    "git pull origin main && npm run build && pm2 restart all",
+    {
+      cwd: projectPath,
+    },
+    (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Błąd podczas wywołania git pull: ${error}`);
+        res.status(500).send(`Błąd podczas wywołania git pull: ${error}`);
+      }
 
-    console.log(`Wynik git pull: ${stdout}`);
-    if (stderr) console.error(`Błąd podczas wywołania git pull: ${stderr}`);
-    res.status(200).send(stdout);
-  });
+      console.log(`Wynik git pull: ${stdout}`);
+      if (stderr) console.error(`Błąd podczas wywołania git pull: ${stderr}`);
+      res.status(200).send(stdout);
+    }
+  );
 });
 
 app.listen(443, () => {
